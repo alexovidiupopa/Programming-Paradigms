@@ -1,138 +1,155 @@
-
-% Lecture 5, slide 34/76
-declare
-fun {FreeSetIntern Expr FreeVars}
-   case Expr of nil
-   then FreeVars
-   [] lam(Id Body) then
-      {List.filter {FreeSetIntern Body FreeVars}
-       fun {$ Elem} {Not Elem == Id} end }
-   [] apply(Left Right) then
-      {List.flatten FreeVars |
-       {FreeSetIntern Left nil} |
-       {FreeSetIntern Right nil}}
-   [] let(Left#Right Result) then
-      {List.filter
-       {List.flatten FreeVars |
-	{FreeSetIntern Right nil} |
-	{FreeSetIntern Result nil}}
-       fun {$ Elem} {Not Elem == Left} end}
-   [] Id then
-      Id|FreeVars
-   end
+declare 
+fun {Concat L1 L2} 
+	case L1 of nil then L2
+	[] H|T then H|{Concat T L2}
+	end
 end
 
 declare
-fun {FreeSet Expr}
-   {FreeSetIntern Expr nil}
+fun {Find E L} 
+	case L of nil then false 
+	[] H|T then 
+		if H == E then true
+		else {Find E T}
+		end
+	end
 end
 
-{Browse {FreeSet apply(x let(x#y x))}}
-{Browse {FreeSet apply(y apply(let(x#x x) y))}}
+declare
+fun {FreeSetHelper Expression L}
+	case Expression of apply(Expr1 Expr2) then 
+		{Concat {FreeSetHelper Expr1 L} {FreeSetHelper Expr2 L}}
+	[] let(ID#Expr1 Expr2) then 
+		{Concat {FreeSetHelper Expr1 ID|L} {FreeSetHelper Expr2 ID|L}}
+	[] lam(ID Expr1) then 
+		{FreeSetHelper Expr1 ID|L}
+	[] ID then if {Find ID L} then nil else [ID] end
+	end
+end
 
+declare 
+fun {FreeSet Expression}
+	{FreeSetHelper Expression nil}
+end
 
+{Browse {FreeSet apply(x let(x#y x))}} % [x y]
+{Browse {FreeSet apply(y apply(let(x#x x) y))}} % [y y]
 
 declare
-fun {IsMember Env Id}
+Cnt = {NewCell 0}
+fun {NewId}
+    Cnt := @Cnt + 1
+    {String.toAtom {Append "id<" {Append {Int.toString @Cnt} ">"}}}
+end
+
+fun {IsMember Env ID}
    case Env of
       nil then false
-   [] H|T then
-      if H.1 == Id then true
-      else {IsMember T Id}
+      [] A#B|T then 
+            if ID == A then true 
+            else {IsMember T ID} 
+            end
       end
-   end
 end
 
 declare
-fun {Fetch Env Id}
+fun {Fetch Env ID}
    case Env of
-      nil then Id
-   [] H|T then
-      if H.1 == Id then H.2
-      else {Fetch T Id}
-      end
+      nil then ID
+   []  A#B|T then 
+        if ID == A then B 
+        else {Fetch T ID} 
+        end
    end
 end
 
-declare
-fun {Adjoin Env Tuple}
-   Tuple | {List.filter Env
-	    fun {$ Entry} {Not Entry.1 == Tuple.1} end}
-end
-
-{Browse {IsMember [a#1 b#2 c#3] c}}
-{Browse {IsMember [a#1 b#2 c#3] d}}
-{Browse {Fetch [a#1 b#2 c#3] c}}
-{Browse {Fetch [a#1 b#2 c#3] d}}
-{Browse {Adjoin [a#1 b#2 c#3] c#4}}
-{Browse {Adjoin [a#1 b#2 c#3] d#4}}
-
 
 declare
-Cnt={NewCell 0}
-
-fun {NewId}
-   Cnt:=@Cnt+1
-   {String.toAtom {Append "id<" {Append {Int.toString @Cnt}">"}}}
-end
-
-declare
-fun {Replace Expr Id IdNew}
-   case Expr of nil then nil
-   [] apply(Left Right) then
-      apply({Replace Left Id IdNew} {Replace Right Id IdNew})
-   [] lam(T Body) then
-      lam({Replace T Id IdNew} {Replace Body Id IdNew})
-   [] let(L#R Result) then
-      let({Replace L Id IdNew}#{Replace R Id IdNew} {Replace Result Id IdNew})
-   [] T then
-      if T==Id then
-	 IdNew
-      else
-	 T
-      end
+fun {Adjoin_aux Env Expr}
+   case Env of
+      nil then nil
+   [] A#B|T then
+      case Expr of
+        X#Y then 
+            if A == X then {Adjoin_aux T Expr}
+            else (A#B)|{Adjoin_aux T Expr} 
+            end
+        end	 
    end
 end
 
+fun {Adjoin Env Expr}
+   Expr | {Adjoin_aux Env Expr}
+end
+
+{Browse {IsMember [a#e1 b#y c#e3] c}}
+{Browse {IsMember [a#e1 b#y c#e3] y}}
+
+{Browse {Fetch [a#e1 b#y c#e3] c}}
+{Browse {Fetch [a#e1 b#y c#e3] d}}
+
+{Browse {Adjoin [a#e1 b#y c#e3] c#e4}}
+{Browse {Adjoin [a#e1 b#y c#e3] d#e4}}
+
 declare
-fun {RenameIntern Expr FreeVars}
-   case Expr
-   of nil then nil
-   [] apply(Left Right) then
-      apply({RenameIntern Left FreeVars} {RenameIntern Right FreeVars})
-   [] lam(T Body) then
-      local NewIdT in NewIdT={NewId}
-	 lam({Replace T T NewIdT} {RenameIntern {Replace Body T NewIdT} FreeVars})
-      end
-   [] let(L#R Result) then
-      local NewIdL in NewIdL={NewId}
-	 let({Replace L L NewIdL}#{RenameIntern R FreeVars} {RenameIntern {Replace Result L NewIdL} FreeVars})
-      end
-   [] Id then
-      if {List.sub "id<" {Atom.toString Id}} then Id
-      elseif {List.member Id FreeVars} then Id
-      else
-	 {Replace Id Id {NewId}}
-      end
-   end
+fun {RenameHelper Expr Env}
+    if {IsAtom Expr} then
+        if {IsMember Env Expr} then
+            {Fetch Env Expr}
+        else
+            Expr
+        end
+    else
+        case Expr of
+            nil then nil
+        [] apply(Expr1 Expr2) then
+            apply({RenameHelper Expr1 Env} {RenameHelper Expr2 Env})
+        [] lam(ID Expr) then
+            if {IsMember Env ID} then
+                lam({Fetch Env ID} {RenameHelper Expr Env})
+            else
+                local Envs in
+                    Envs = {Adjoin Env ID#{NewId}}
+                    lam({Fetch Envs ID} {RenameHelper Expr Envs})
+                end
+            end
+        [] let(ID#Expr1 Expr2) then
+            if {IsMember Env ID} then
+                let({Fetch Env ID}#{RenameHelper Expr1 Expr2} {RenameHelper Expr2 Env})
+            else
+                local Envs in
+                    Envs = {Adjoin Env ID#{NewId}}
+                    let({Fetch Envs ID}#{RenameHelper Expr1 Env} {RenameHelper Expr2 Envs})
+                end
+            end
+        end  
+    end      
 end
 
 declare
-fun {Rename Expr}
-   {RenameIntern Expr {FreeSet Expr}}
+fun {Rename Expression}
+    {RenameHelper Expression nil}
 end
 
 {Browse {Rename lam(z lam(x z))}}
 {Browse {Rename let(id#lam(z z) apply(id y))}}
 
-%Subs operation
-declare
-fun {Subs Bind Expr}
-   case Bind of nil then nil
-   [] Id#Ex then
-      {Replace {Rename Expr} Id Ex}
-   end
+declare 
+fun {ReplaceIn Expr ID NewId}
+	case Expr of nil then Expr
+	[] let(L#R Res) then let({ReplaceIn L ID NewId}#{ReplaceIn R ID NewId} {ReplaceIn Res ID NewId})
+	[] lam(T Body) then lam({ReplaceIn T ID NewId} {ReplaceIn Body ID NewId})
+	[] apply(L R) then apply({ReplaceIn L ID NewId} {ReplaceIn R ID NewId})
+	[] T then if T == ID then NewId else T end
+	end
 end
 
+declare 
+fun {Subs Binding InExpr}
+	case Binding of nil then nil 
+	[] Id#Expr then {ReplaceIn {Rename InExpr} Id Expr}
+	end
+end
+
+{Browse {Subs x#lam(x x) apply(x y)}}
 {Browse {Subs x#lam(z z) apply(x lam(x apply(x z)))}}
-{Browse {Subs x#lam(y z) apply(x lam(z apply(x z)))}}
