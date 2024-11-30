@@ -6,30 +6,30 @@ fun {Concat L1 L2}
 end
 
 declare
-fun {Find E L} 
+fun {Contains E L} 
 	case L of nil then false 
 	[] H|T then 
 		if H == E then true
-		else {Find E T}
+		else {Contains E T}
 		end
 	end
 end
 
 declare
-fun {FreeSetHelper Expression L}
-	case Expression of apply(Expr1 Expr2) then 
-		{Concat {FreeSetHelper Expr1 L} {FreeSetHelper Expr2 L}}
+fun {FreeSetAux Expr L}
+	case Expr of apply(Expr1 Expr2) then 
+		{Concat {FreeSetAux Expr1 L} {FreeSetAux Expr2 L}}
 	[] let(ID#Expr1 Expr2) then 
-		{Concat {FreeSetHelper Expr1 ID|L} {FreeSetHelper Expr2 ID|L}}
+		{Concat {FreeSetAux Expr1 ID|L} {FreeSetAux Expr2 ID|L}}
 	[] lam(ID Expr1) then 
-		{FreeSetHelper Expr1 ID|L}
-	[] ID then if {Find ID L} then nil else [ID] end
+		{FreeSetAux Expr1 ID|L}
+	[] ID then if {Contains ID L} then nil else [ID] end
 	end
 end
 
 declare 
-fun {FreeSet Expression}
-	{FreeSetHelper Expression nil}
+fun {FreeSet Expr}
+	{FreeSetAux Expr nil}
 end
 
 {Browse {FreeSet apply(x let(x#y x))}} % [x y]
@@ -65,21 +65,21 @@ end
 
 
 declare
-fun {Adjoin_aux Env Expr}
+fun {AdjoinAux Env Expr}
    case Env of
       nil then nil
    [] A#B|T then
       case Expr of
         X#Y then 
-            if A == X then {Adjoin_aux T Expr}
-            else (A#B)|{Adjoin_aux T Expr} 
+            if A == X then {AdjoinAux T Expr}
+            else (A#B)|{AdjoinAux T Expr} 
             end
         end	 
    end
 end
 
 fun {Adjoin Env Expr}
-   Expr | {Adjoin_aux Env Expr}
+   Expr | {AdjoinAux Env Expr}
 end
 
 {Browse {IsMember [a#e1 b#y c#e3] c}}
@@ -145,9 +145,9 @@ fun {ReplaceIn Expr ID NewId}
 end
 
 declare 
-fun {Subs Binding InExpr}
+fun {Subs Binding Expr}
 	case Binding of nil then nil 
-	[] Id#Expr then {ReplaceIn {Rename InExpr} Id Expr}
+	[] Id#Exp then {ReplaceIn {Rename Expr} Id Exp}
 	end
 end
 
