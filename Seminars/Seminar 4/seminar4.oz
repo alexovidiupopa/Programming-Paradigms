@@ -15,6 +15,7 @@ fun {Contains E L}
 	end
 end
 
+% Lecture 5, slide 34/76
 declare
 fun {FreeSetAux Expr L}
 	case Expr of apply(Expr1 Expr2) then 
@@ -72,7 +73,7 @@ fun {AdjoinAux Env Expr}
       case Expr of
         X#Y then 
             if A == X then {AdjoinAux T Expr}
-            else (A#B)|{AdjoinAux T Expr} 
+            else (A#B)|{AdjoinAux T Expr} % or (A#B) | T, if we can only have 1 occurrence
             end
         end	 
    end
@@ -92,43 +93,43 @@ end
 {Browse {Adjoin [a#e1 b#y c#e3] d#e4}}
 
 declare
-fun {RenameHelper Expr Env}
+fun {RenameAux Expr Env}
     if {IsAtom Expr} then
-        if {IsMember Env Expr} then
+        if {IsMember Env Expr} then % not unique variable, retrieve its id
             {Fetch Env Expr}
         else
             Expr
         end
     else
         case Expr of
-            nil then nil
-        [] apply(Expr1 Expr2) then
-            apply({RenameHelper Expr1 Env} {RenameHelper Expr2 Env})
-        [] lam(ID Expr) then
-            if {IsMember Env ID} then
-                lam({Fetch Env ID} {RenameHelper Expr Env})
+	   nil then nil
+	[] let(ID#Expr1 Expr2) then
+            if {IsMember Env ID} then % the renamed ID is part of the Environment -> retrieve it and move on
+                let({Fetch Env ID}#{RenameAux Expr1 Expr2} {RenameAux Expr2 Env})
             else
                 local Envs in
                     Envs = {Adjoin Env ID#{NewId}}
-                    lam({Fetch Envs ID} {RenameHelper Expr Envs})
+                    let({Fetch Envs ID}#{RenameAux Expr1 Env} {RenameAux Expr2 Envs}) % the renamed ID is not part of the Environment -> rename to {NewId}, adjoin and move on
                 end
-            end
-        [] let(ID#Expr1 Expr2) then
-            if {IsMember Env ID} then
-                let({Fetch Env ID}#{RenameHelper Expr1 Expr2} {RenameHelper Expr2 Env})
+	    end
+	[] lam(ID Expr) then 
+            if {IsMember Env ID} then % same as let
+                lam({Fetch Env ID} {RenameAux Expr Env})
             else
                 local Envs in
                     Envs = {Adjoin Env ID#{NewId}}
-                    let({Fetch Envs ID}#{RenameHelper Expr1 Env} {RenameHelper Expr2 Envs})
+                    lam({Fetch Envs ID} {RenameAux Expr Envs})
                 end
-            end
-        end  
+	    end
+        [] apply(Expr1 Expr2) then % rename everything under expr1 and expr2
+            apply({RenameAux Expr1 Env} {RenameAux Expr2 Env})
+	end
     end      
 end
 
 declare
-fun {Rename Expression}
-    {RenameHelper Expression nil}
+fun {Rename Expr}
+    {RenameAux Expr nil}
 end
 
 {Browse {Rename lam(z lam(x z))}}
@@ -137,10 +138,10 @@ end
 declare 
 fun {ReplaceIn Expr ID NewId}
 	case Expr of nil then Expr
-	[] let(L#R Res) then let({ReplaceIn L ID NewId}#{ReplaceIn R ID NewId} {ReplaceIn Res ID NewId})
-	[] lam(T Body) then lam({ReplaceIn T ID NewId} {ReplaceIn Body ID NewId})
-	[] apply(L R) then apply({ReplaceIn L ID NewId} {ReplaceIn R ID NewId})
-	[] T then if T == ID then NewId else T end
+	[] let(L#R Res) then let({ReplaceIn L ID NewId}#{ReplaceIn R ID NewId} {ReplaceIn Res ID NewId}) % replace ID in all 3 members
+	[] lam(T Body) then lam({ReplaceIn T ID NewId} {ReplaceIn Body ID NewId}) % replace ID in both members 
+	[] apply(L R) then apply({ReplaceIn L ID NewId} {ReplaceIn R ID NewId}) % replace ID in both members
+	[] T then if T == ID then NewId else T end % atom - either the one we're searching for, or another one
 	end
 end
 
