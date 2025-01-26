@@ -7,16 +7,19 @@ end
 
 declare
 fun {Consume Xs Min Max}
-   case Xs of X|Xr then
-      if X < Min then {Consume Xr X Max} else if X > Max then {Consume Xr Min X} end end
+   case Xs of H|T then
+      if H < Min then {Consume T H Max} 
+        else if H > Max then {Consume T Min H} 
+        else {Consume T Min Max}
+        end 
+    end
    [] nil then Min#Max
    end
 end
 
+N = 1
+Stream = thread {Produce N 10000} end
+Result = thread {Consume Stream 1000000 1} end
 
-declare
-thread Stream = {Produce 1 10000} end
-declare
-thread Result = {Consume Stream N 10000} end
-
+{Browse Result}
 {Browse Stream}

@@ -1,3 +1,8 @@
+
+% The concurrency is useless as the concurrent thread is inside the conditional check, and the execution is blocked waiting for it to respond.
+% An alternative for effective parallelism is to compute all {F X} in parallel, and collect successfull X in a non-deterministic stream (such as NewPort). 
+% To preserve the order of elements at the end, we will have to send a position I along with each X element, and sort the entries according to the index.
+
 declare
 fun {FilterNaive L F}
    case L of
